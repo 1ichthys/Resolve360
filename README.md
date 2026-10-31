@@ -1,4 +1,4 @@
-# Resolve360
+# Resolve360 VR Plug-in
 
 **Version 0.1.0 (alpha)** - a GPU 360 video reframer for DaVinci Resolve.
 
