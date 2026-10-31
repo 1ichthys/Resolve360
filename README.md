@@ -6,7 +6,13 @@ Resolve360 takes 2:1 equirectangular 360 footage and lets you aim a virtual came
 
 > **This is an early alpha.** It has been tested on one setup (see [Tested on](#tested-on)). There are probably workflows we have not thought of, and bugs on Windows and Linux that we have not been able to check. **Testing and feedback are very welcome** - see [Testing and feedback](#testing-and-feedback).
 
+## Credits and why
+- **KartaVR/Insta360** I have long used and been grateful for KartaVR and its Reframe360 Ultra tool by Andrew Hazelden (Kartaverse). This was originally the only way you could edit 360 video clips straight in Resolve. Andrew has stated that he is retiring his support of the tool. This latest version of Resolve broke my old path install so I tried to reinstall Reactor and the plug-in to no success at all. It seems like it was a macOS bug for Reactor Standalone. This sent me into a panic that I couldn't finish my video project on time! So descided to make another, no secondary install needed, light weight and functional that is how this has been born.
+
+- **Behavior reference:** Insta360 Studio's Reframe tool. The look and feel of the Field Of View and Distortion controls was tuned by comparing Resolve360's output against Studio's at matching settings. I also want to further push this and hope we can get to direct importation of Insta360 footage like the GoPro reframe pluggin does for Adobe Premiere Pro.
+- 
 <!-- Add screenshots here, for example: ![Resolve360 controls](docs/controls.png) -->
+<img width="418" height="561" alt="Resolve360" src="https://github.com/user-attachments/assets/975ad002-b6cd-409e-9ece-10fde89b92fb" />
 
 ## Why this exists
 Editing 360 video in Resolve usually means reframing it with a tool inside Resolve. The reframing tool many of us relied on, KartaVR's Reframe360 Ultra, stopped working on recent versions of macOS, and Insta360 Studio's Reframe tool, while excellent, lives outside the Resolve timeline. Resolve360 exists so that 360 reframing can stay inside Resolve, work on current systems, and be open and easy for others to read, test and improve.
@@ -26,12 +32,6 @@ Not yet tested: Windows, Linux, NVIDIA/AMD GPUs, the free edition of Resolve, ot
 
 ## Install
 You copy two files into Resolve's user Fusion folder and restart Resolve.
-
-| OS | Fusion user folder |
-|---|---|
-| macOS | `~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/` |
-| Windows | `%APPDATA%\Blackmagic Design\DaVinci Resolve\Support\Fusion\` |
-| Linux | `~/.local/share/DaVinciResolve/Fusion/` |
 
 The macOS path is the one we tested. The Windows and Linux paths follow Blackmagic's usual defaults but are **untested**; if yours differs, please tell us.
 
@@ -84,10 +84,6 @@ We are actively looking for testers. The most helpful things to try:
 - Odd timeline sizes and scaling modes
 
 Please open an [issue](https://github.com/1ichthys/Resolve360/issues) (there is a template) and include your Resolve version and edition, operating system, GPU, where you used it (Edit or Fusion page), your clip and timeline resolution, and the scaling mode. If the effect fails to load, open the Fusion page, choose Workspace -> Console, and paste any red text. Reports of things that **work** are just as welcome as bug reports.
-
-## Credits and how it was built
-- **Original idea:** KartaVR and its Reframe360 Ultra tool, by Andrew Hazelden (Kartaverse). Resolve360 builds on the idea of reframing 360 footage inside Resolve's Fusion.
-- **Behavior reference:** Insta360 Studio's Reframe tool. The look and feel of the Field Of View and Distortion controls was tuned by comparing Resolve360's output against Studio's at matching settings.
 
 Resolve360 is an **independent implementation**. It is not a port, decompilation or reverse-engineering of KartaVR or Insta360 Studio, and it contains no code from either. It builds on the ideas of those tools.
 
