@@ -1,0 +1,37 @@
+{
+	Tools = ordered() {
+		Resolve360 = MacroOperator {
+			Inputs = ordered() {
+				PresetLinear = InstanceInput { SourceOp = "Resolve360_1", Source = "PresetLinear", },
+				PresetUltra = InstanceInput { SourceOp = "Resolve360_1", Source = "PresetUltra", },
+				PresetWide = InstanceInput { SourceOp = "Resolve360_1", Source = "PresetWide", },
+				PresetFisheye = InstanceInput { SourceOp = "Resolve360_1", Source = "PresetFisheye", },
+				FieldOfView = InstanceInput { SourceOp = "Resolve360_1", Source = "FieldOfView", Default = 79, },
+				Pitch = InstanceInput { SourceOp = "Resolve360_1", Source = "Pitch", Default = 0, },
+				Yaw = InstanceInput { SourceOp = "Resolve360_1", Source = "Yaw", Default = 0, },
+				Roll = InstanceInput { SourceOp = "Resolve360_1", Source = "Roll", Default = 0, },
+				Distortion = InstanceInput { SourceOp = "Resolve360_1", Source = "Distortion", Default = 0.95, },
+				Note = InstanceInput { SourceOp = "Resolve360_1", Source = "Note", },
+				MainInput1 = InstanceInput { SourceOp = "Resolve360_1", Source = "Input", },
+			},
+			Outputs = {
+				MainOutput1 = InstanceOutput {
+					SourceOp = "Resolve360_1",
+					Source = "Output",
+				},
+			},
+			ViewInfo = GroupInfo { Pos = { 0, 0 } },
+			Tools = ordered() {
+				Resolve360_1 = Fuse.Resolve360 {
+					CtrlWZoom = false,
+					Inputs = {
+						FieldOfView = Input { Value = 79, },
+						Note = Input { Value = "If you are using this on a timeline that is not 2:1 scale (ex. 3860x1920), you need to change the video clip scaling in the Inspector tab -> Retime and Scaling to \"Fit\". This avoids Resolve's pre-scaling. Or you can change this at the project settings level.\n\nAdding the plug-in via the Fusion tab avoids this scaling problem.", },
+					},
+					ViewInfo = OperatorInfo { Pos = { 0, 0 } },
+				},
+			},
+		},
+	},
+	ActiveTool = "Resolve360"
+}

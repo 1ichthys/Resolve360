@@ -1,0 +1,294 @@
+--[[--
+Resolve360 v0.1.0 (alpha) - 360 video reframer for DaVinci Resolve
+Equirectangular (2:1) reframer with Field Of View (horizontal), Up/Down,
+Left/Right, Rotate and Distortion controls.
+Inspired by KartaVR's Reframe360 Ultra and tuned against the look of Insta360 Studio's
+Reframe tool. Independent implementation: no code from either product.
+Projection: r = sin(t) / (d + cos(t)); d=0 rectilinear, d=1 stereographic,
+d>1 round disc with black outside. GPU (Metal/CUDA/OpenCL) via DVIPComputeNode.
+Resolve's Fit letterbox/pillarbox bars are detected and skipped.
+--]]--
+
+FuRegisterClass("Resolve360", CT_Tool, {
+  REGS_Name = "Resolve360",
+  REGS_Category = "Fuses",
+  REGS_OpIconString = "R360",
+  REGS_OpDescription = "Reframe equirectangular 360 footage",
+  REG_Fuse_NoEdit = false,
+  REG_Fuse_NoReload = false,
+  REG_SupportsDoD = false,
+})
+
+function Create()
+  InPresetLinear = self:AddInput("Linear", "PresetLinear", {
+    LINKID_DataType = "Number", INPID_InputControl = "ButtonControl",
+    INP_DoNotifyChanged = true, INP_External = false, ICD_Width = 0.25,
+  })
+  InPresetUltra = self:AddInput("Ultra", "PresetUltra", {
+    LINKID_DataType = "Number", INPID_InputControl = "ButtonControl",
+    INP_DoNotifyChanged = true, INP_External = false, ICD_Width = 0.25,
+  })
+  InPresetWide = self:AddInput("Wide", "PresetWide", {
+    LINKID_DataType = "Number", INPID_InputControl = "ButtonControl",
+    INP_DoNotifyChanged = true, INP_External = false, ICD_Width = 0.25,
+  })
+  InPresetFisheye = self:AddInput("Fisheye", "PresetFisheye", {
+    LINKID_DataType = "Number", INPID_InputControl = "ButtonControl",
+    INP_DoNotifyChanged = true, INP_External = false, ICD_Width = 0.25,
+  })
+
+  InFov = self:AddInput("Field Of View", "FieldOfView", {
+    LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
+    INP_Default = 79.0, INP_MinScale = 10.0, INP_MaxScale = 179.0,
+    INP_MinAllowed = 1.0, INP_MaxAllowed = 179.0,
+  })
+  InPitch = self:AddInput("Up/Down", "Pitch", {
+    LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
+    INP_Default = 0.0, INP_MinScale = -180.0, INP_MaxScale = 180.0,
+  })
+  InYaw = self:AddInput("Left/Right", "Yaw", {
+    LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
+    INP_Default = 0.0, INP_MinScale = -360.0, INP_MaxScale = 360.0,
+  })
+  InRoll = self:AddInput("Rotate", "Roll", {
+    LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
+    INP_Default = 0.0, INP_MinScale = -180.0, INP_MaxScale = 180.0,
+  })
+  InDist = self:AddInput("Distortion", "Distortion", {
+    LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
+    INP_Default = 0.95, INP_MinScale = 0.0, INP_MaxScale = 2.0,
+    INP_MinAllowed = 0.0, INP_MaxAllowed = 4.0,
+  })
+  InTick = self:AddInput("Tick", "Tick", {
+    LINKID_DataType = "Number", INPID_InputControl = "SliderControl",
+    INP_Default = 0.0, INP_External = false, IC_Visible = false,
+  })
+  InReset = self:AddInput("Reset All", "ResetAll", {
+    LINKID_DataType = "Number", INPID_InputControl = "ButtonControl",
+    INP_DoNotifyChanged = true, INP_External = false,
+    IC_Visible = true,
+  })
+  InNote = self:AddInput("Note", "Note", {
+    LINKID_DataType = "Text",
+    INPID_InputControl = "TextEditControl",
+    INP_DefaultText = [[If you are using this on a timeline that is not 2:1 scale (ex. 3860x1920), you need to change the video clip scaling in the Inspector tab -> Retime and Scaling to "Fit". This avoids Resolve's pre-scaling. Or you can change this at the project settings level.
+
+Adding the plug-in via the Fusion tab avoids this scaling problem.]],
+    TEC_ReadOnly = true,
+    TEC_Wrap = true,
+    TEC_Lines = 13,
+    INP_External = false,
+    INP_Passive = true,
+  })
+  InImage = self:AddInput("Input", "Input", {
+    LINKID_DataType = "Image", LINK_Main = 1,
+  })
+  OutImage = self:AddOutput("Output", "Output", {
+    LINKID_DataType = "Image", LINK_Main = 1,
+  })
+end
+
+function SetFovDist(time, fov, dist)
+  InFov:SetSource(Number(fov), time)
+  InDist:SetSource(Number(dist), time)
+end
+
+function NotifyChanged(inp, param, time)
+  if inp == InFov or inp == InPitch or inp == InYaw or inp == InRoll or inp == InDist then InTick:SetSource(Number(os.clock()), time) end
+  if param == nil or param.Value ~= 1 then return end
+  if inp == InPresetLinear then SetFovDist(time, 79, 0.95)
+  elseif inp == InPresetUltra then SetFovDist(time, 79, 0.95)
+  elseif inp == InPresetWide then SetFovDist(time, 140, 0.95)
+  elseif inp == InPresetFisheye then SetFovDist(time, 140, 1.8)
+  elseif inp == InReset then
+    SetFovDist(time, 79, 0.95)
+    InPitch:SetSource(Number(0), time)
+    InYaw:SetSource(Number(0), time)
+    InRoll:SetSource(Number(0), time)
+  end
+end
+
+function Process(req)
+  local src = InImage:GetValue(req)
+  local tick = InTick:GetValue(req).Value
+  local dst = Image{ IMG_Like = src, IMG_DeferAlloc = true }
+
+  if not req:IsPreCalc() then
+    local node = DVIPComputeNode(req, "Resolve360Kernel", Resolve360Kernel, "Resolve360Params", Resolve360Params)
+    local params = node:GetParamBlock(Resolve360Params)
+
+    params.fov   = InFov:GetValue(req).Value
+    params.pitch = -InPitch:GetValue(req).Value
+    params.yaw   = InYaw:GetValue(req).Value
+    params.roll  = InRoll:GetValue(req).Value
+    params.dist  = InDist:GetValue(req).Value
+    params.dstsize[0] = dst.DataWindow:Width()
+    params.dstsize[1] = dst.DataWindow:Height()
+    params.srcCompOrder = src:IsMask() and 1 or 15
+
+    node:SetParamBlock(params)
+    node:AddSampler("RowSampler", TEX_FILTER_MODE_LINEAR, TEX_ADDRESS_MODE_CLAMP, TEX_NORMALIZED_COORDS_TRUE)
+    node:AddInput("src", src)
+    node:AddOutput("dst", dst)
+
+    local ok = node:RunSession(req)
+    if not ok then
+      dst = nil
+    end
+  end
+
+  OutImage:Set(req, dst)
+end
+
+Resolve360Params = [[
+  float fov;
+  float pitch;
+  float yaw;
+  float roll;
+  float dist;
+  int dstsize[2];
+  int srcCompOrder;
+]]
+
+Resolve360Kernel = [[
+__KERNEL__ void Resolve360Kernel(__CONSTANTREF__ Resolve360Params *params, __TEXTURE2D__ src, __TEXTURE2D_WRITE__ dst)
+{
+  DEFINE_KERNEL_ITERATORS_XY(x, y);
+  if (x < params->dstsize[0] && y < params->dstsize[1])
+  {
+    float W = (float)params->dstsize[0];
+    float H = (float)params->dstsize[1];
+    float deg = 0.01745329252f;
+
+    // Output pixel -> view plane (x spans [-1,1], y up)
+    float vx = 2.0f * ((float)x + 0.5f) / W - 1.0f;
+    float vy = (2.0f * ((float)y + 0.5f) / H - 1.0f) * (H / W);
+    float rho = _sqrtf(vx * vx + vy * vy);
+    float phi = _atan2f(vy, vx);
+
+    // Insta360-style projection: r = sin(t)/(d+cos(t)); d=0 rectilinear, d=1 stereographic
+    float fovc = params->fov < 179.0f ? params->fov : 179.0f;
+    float hh = fovc * 0.5f * deg;
+    float cz = 1.0f;
+    float uu = rho * _sinf(hh) / _cosf(hh) * cz;
+    float ratio = uu / _sqrtf(1.0f + uu * uu);
+    float sv = params->dist * ratio;
+    int inside = 1;
+    if (sv > 1.0f) { inside = 0; sv = 1.0f; }
+    float th = _atan2f(uu, 1.0f) + _atan2f(sv, _sqrtf(1.0f - sv * sv));
+    if (th > 2.7925f) { inside = 0; }   // Studio draws nothing past 160 degrees
+
+    // View direction (x right, y up, z forward)
+    float dx = _sinf(th) * _cosf(phi);
+    float dy = _sinf(th) * _sinf(phi);
+    float dz = _cosf(th);
+
+    // Roll, then pitch, then yaw
+    float cr = _cosf(params->roll * deg);
+    float sr = _sinf(params->roll * deg);
+    float rx = dx * cr - dy * sr;
+    float ry = dx * sr + dy * cr;
+    float rz = dz;
+
+    float cp = _cosf(params->pitch * deg);
+    float sp = _sinf(params->pitch * deg);
+    float px = rx;
+    float py = ry * cp - rz * sp;
+    float pz = ry * sp + rz * cp;
+
+    float cyw = _cosf(params->yaw * deg);
+    float syw = _sinf(params->yaw * deg);
+    float qx = px * cyw + pz * syw;
+    float qy = py;
+    float qz = -px * syw + pz * cyw;
+
+    // Direction -> equirectangular UV
+    float lon = _atan2f(qx, qz);
+    float lat = _atan2f(qy, _sqrtf(qx * qx + qz * qz));
+    float u = lon / 6.28318530718f + 0.5f;
+    float v = lat / 3.14159265359f + 0.5f;
+    u = u < 0.0f ? 0.0f : (u > 1.0f ? 1.0f : u);
+    v = v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v);
+
+    // Detect Resolve's fit bars (pure black rows/columns at the frame edge) and skip them
+    float cu = 1.0f;
+    float cv = 1.0f;
+    float4 b1 = _tex2DVecN(src, 0.4f, 0.5f / H, params->srcCompOrder);
+    float4 b2 = _tex2DVecN(src, 0.6f, 0.5f / H, params->srcCompOrder);
+    float4 b3 = _tex2DVecN(src, 0.4f, 1.0f - 0.5f / H, params->srcCompOrder);
+    float4 b4 = _tex2DVecN(src, 0.6f, 1.0f - 0.5f / H, params->srcCompOrder);
+    float4 b5 = _tex2DVecN(src, 0.5f / W, 0.4f, params->srcCompOrder);
+    float4 b6 = _tex2DVecN(src, 0.5f / W, 0.6f, params->srcCompOrder);
+    float4 b7 = _tex2DVecN(src, 1.0f - 0.5f / W, 0.4f, params->srcCompOrder);
+    float4 b8 = _tex2DVecN(src, 1.0f - 0.5f / W, 0.6f, params->srcCompOrder);
+    float sTB = b1.x*b1.x + b1.y*b1.y + b1.z*b1.z + b2.x*b2.x + b2.y*b2.y + b2.z*b2.z
+              + b3.x*b3.x + b3.y*b3.y + b3.z*b3.z + b4.x*b4.x + b4.y*b4.y + b4.z*b4.z;
+    float sLR = b5.x*b5.x + b5.y*b5.y + b5.z*b5.z + b6.x*b6.x + b6.y*b6.y + b6.z*b6.z
+              + b7.x*b7.x + b7.y*b7.y + b7.z*b7.z + b8.x*b8.x + b8.y*b8.y + b8.z*b8.z;
+    int barsTB = sTB < 0.000001f ? 1 : 0;
+    int barsLR = sLR < 0.000001f ? 1 : 0;
+    if (barsTB == 1 && barsLR == 0) { cv = (W * 0.5f - 1.0f) / H; }
+    if (barsLR == 1 && barsTB == 0) { cu = (2.0f * H - 1.0f) / W; }
+    cv = cv > 1.0f ? 1.0f : cv;
+    cu = cu > 1.0f ? 1.0f : cu;
+    u = (u - 0.5f) * cu + 0.5f;
+    v = (v - 0.5f) * cv + 0.5f;
+
+    // ---- seam-safe bilinear sampling (wraps left/right at the 360 seam) ----
+    float spx = u * W - 0.5f;
+    float spy = v * H - 0.5f;
+    int ix = (int)(spx + 16384.0f) - 16384;
+    int iy = (int)(spy + 16384.0f) - 16384;
+    float fx = spx - (float)ix;
+    float fy = spy - (float)iy;
+    int Wi = params->dstsize[0];
+    int Hi = params->dstsize[1];
+    int xa = ((ix % Wi) + Wi) % Wi;
+    int xb = (((ix + 1) % Wi) + Wi) % Wi;
+    int ya = iy < 0 ? 0 : (iy > Hi - 1 ? Hi - 1 : iy);
+    int yb = (iy + 1) < 0 ? 0 : ((iy + 1) > Hi - 1 ? Hi - 1 : (iy + 1));
+    float4 t00 = _tex2DVecN(src, ((float)xa + 0.5f) / W, ((float)ya + 0.5f) / H, params->srcCompOrder);
+    float4 t10 = _tex2DVecN(src, ((float)xb + 0.5f) / W, ((float)ya + 0.5f) / H, params->srcCompOrder);
+    float4 t01 = _tex2DVecN(src, ((float)xa + 0.5f) / W, ((float)yb + 0.5f) / H, params->srcCompOrder);
+    float4 t11 = _tex2DVecN(src, ((float)xb + 0.5f) / W, ((float)yb + 0.5f) / H, params->srcCompOrder);
+    float w00 = (1.0f - fx) * (1.0f - fy);
+    float w10 = fx * (1.0f - fy);
+    float w01 = (1.0f - fx) * fy;
+    float w11 = fx * fy;
+    float4 rgba = make_float4(t00.x * w00 + t10.x * w10 + t01.x * w01 + t11.x * w11,
+                              t00.y * w00 + t10.y * w10 + t01.y * w01 + t11.y * w11,
+                              t00.z * w00 + t10.z * w10 + t01.z * w01 + t11.z * w11,
+                              t00.w * w00 + t10.w * w10 + t01.w * w01 + t11.w * w11);
+
+    // ---- tone match across the seam: smoothly cancel the left/right edge exposure gap ----
+    float dseam = 3.14159265359f - (lon < 0.0f ? -lon : lon);   // radians from the seam
+    float band = 0.55f;                                          // about 31 degrees each side
+    float strength = 1.0f;                                       // 0 = off, 1 = full match
+    if (dseam < band && cu > 0.999f)
+    {
+      float t = 1.0f - dseam / band;
+      float rampv = 0.5f * t * t * (3.0f - 2.0f * t) * strength; // smooth fade, 0.5 at the seam
+      float sgn = lon < 0.0f ? 1.0f : -1.0f;
+      float gr = 0.0f;
+      float gg = 0.0f;
+      float gb = 0.0f;
+      for (int k = -7; k <= 7; k++)
+      {
+        int yy = iy + k * 12;
+        yy = yy < 0 ? 0 : (yy > Hi - 1 ? Hi - 1 : yy);
+        float4 el = _tex2DVecN(src, 0.5f / W, ((float)yy + 0.5f) / H, params->srcCompOrder);
+        float4 er = _tex2DVecN(src, (W - 0.5f) / W, ((float)yy + 0.5f) / H, params->srcCompOrder);
+        gr += er.x - el.x;
+        gg += er.y - el.y;
+        gb += er.z - el.z;
+      }
+      rgba = make_float4(rgba.x + sgn * rampv * gr / 15.0f,
+                         rgba.y + sgn * rampv * gg / 15.0f,
+                         rgba.z + sgn * rampv * gb / 15.0f,
+                         rgba.w);
+    }
+    if (inside == 0) { rgba = make_float4(0.0f, 0.0f, 0.0f, 1.0f); }
+    _tex2DVec4Write(dst, x, y, rgba);
+  }
+}
+]]
