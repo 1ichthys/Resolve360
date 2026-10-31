@@ -2,20 +2,34 @@
 
 **Version 0.1.0 (alpha)** - a GPU 360 video reframer for DaVinci Resolve.
 
+<img width="418" height="561" alt="Resolve360" src="https://github.com/user-attachments/assets/975ad002-b6cd-409e-9ece-10fde89b92fb" />
+
 Resolve360 takes 2:1 equirectangular 360 footage and lets you aim a virtual camera at it with **Field Of View**, **Up/Down**, **Left/Right**, **Rotate** and **Distortion** controls, directly inside DaVinci Resolve. Every control can be keyframed, and it works on both the Edit page and the Fusion page.
 
-> **This is an early alpha.** It has been tested on one setup (see [Tested on](#tested-on)). There are probably workflows we have not thought of, and bugs on Windows and Linux that we have not been able to check. **Testing and feedback are very welcome** - see [Testing and feedback](#testing-and-feedback).
+> **This is an early alpha.** It has been tested on one setup (see [Tested on](#tested-on)). There are probably workflows we have not thought of, and bugs on Windows and Linux that we have not been able to check. **Testing and feedback are very welcome** - (see [Testing and feedback](#testing-and-feedback)). **Known Bugs** - There are some know bugs (see [Known Bugs](#bugs)) before posting a Issues request.
 
 ## Credits and why
 - **KartaVR/Insta360** I have long used and been grateful for KartaVR and its Reframe360 Ultra tool by Andrew Hazelden (Kartaverse). This was originally the only way you could edit 360 video clips straight in Resolve. Andrew has stated that he is retiring his support of the tool. This latest version of Resolve broke my old path install so I tried to reinstall Reactor and the plug-in to no success at all. It seems like it was a macOS bug for Reactor Standalone. This sent me into a panic that I couldn't finish my video project on time! So descided to make another, no secondary install needed, light weight and functional that is how this has been born.
 
 - **Behavior reference:** Insta360 Studio's Reframe tool. The look and feel of the Field Of View and Distortion controls was tuned by comparing Resolve360's output against Studio's at matching settings. I also want to further push this and hope we can get to direct importation of Insta360 footage like the GoPro reframe pluggin does for Adobe Premiere Pro.
-- 
-<!-- Add screenshots here, for example: ![Resolve360 controls](docs/controls.png) -->
-<img width="418" height="561" alt="Resolve360" src="https://github.com/user-attachments/assets/975ad002-b6cd-409e-9ece-10fde89b92fb" />
 
-## Why this exists
-Editing 360 video in Resolve usually means reframing it with a tool inside Resolve. The reframing tool many of us relied on, KartaVR's Reframe360 Ultra, stopped working on recent versions of macOS, and Insta360 Studio's Reframe tool, while excellent, lives outside the Resolve timeline. Resolve360 exists so that 360 reframing can stay inside Resolve, work on current systems, and be open and easy for others to read, test and improve.
+## Tested on
+- **DaVinci Resolve Studio 21.1.2** on **macOS 27.2** (Metal)
+
+Not yet tested: Windows, Linux, NVIDIA/AMD GPUs, the free edition of Resolve, other Resolve versions, and footage from cameras other than Insta360. Reports from any of these are very useful.
+
+## Install
+You copy two files into Resolve's user Fusion folder and restart Resolve. Please note this is paths for macOS I am unclear how Linux distros or Windows files these Resolve folder structures
+
+The macOS path is the one we tested. The Windows and Linux paths follow Blackmagic's usual defaults but are **untested**; if yours differs, please tell us.
+
+1. Download the latest zip from the [Releases](https://github.com/1ichthys/Resolve360/releases) page and unzip it. (Or clone the repository: `git clone https://github.com/1ichthys/Resolve360.git`.)
+2. Put `Reframe360.fuse` in `~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Fuses/`. In Finder, use Go → Go to Folder and paste that path.
+3. Put `Reframe360.setting` in `~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Templates/Edit/Effects/`. 
+**Create the Templates/Edit/Effects folders if they don’t exist.**
+4. Restart DaVinci Resolve.
+
+Future updates will keep the plug-in id so there should be no lost of keyframes or need to re-add effect with future builds.
 
 ## Features
 - Field Of View (horizontal), Up/Down, Left/Right and Rotate controls, all keyframeable
@@ -25,29 +39,18 @@ Editing 360 video in Resolve usually means reframing it with a tool inside Resol
 - Automatically skips Resolve's letterbox or pillarbox bars when the clip scaling is set to **Fit**
 - GPU accelerated, using Fusion's built-in compute kernel support (no separate SDK or build step)
 
-## Tested on
-- **DaVinci Resolve Studio 21** on **macOS** (Metal)
-
-Not yet tested: Windows, Linux, NVIDIA/AMD GPUs, the free edition of Resolve, other Resolve versions, and footage from cameras other than Insta360. Reports from any of these are very useful.
-
-## Install
-You copy two files into Resolve's user Fusion folder and restart Resolve.
-
-The macOS path is the one we tested. The Windows and Linux paths follow Blackmagic's usual defaults but are **untested**; if yours differs, please tell us.
-
-1. Download the latest zip from the [Releases](https://github.com/1ichthys/Resolve360/releases) page and unzip it. (Or clone the repository: `git clone https://github.com/1ichthys/Resolve360.git`.)
-2. Copy `Fuses/Resolve360.fuse` into the `Fuses` folder inside your Fusion user folder.
-3. Copy `Templates/Edit/Effects/Resolve360.setting` into `Templates/Edit/Effects` inside your Fusion user folder. Create those folders if they do not exist.
-4. Restart DaVinci Resolve.
-
-macOS tip: in Finder choose Go -> Go to Folder... and paste the path.
-
-If you installed an earlier test version called `Reframe360`, remove `Reframe360.fuse` and any old `Resolve360.setting`/`Reframe360.setting` first. Clips that used the old version will need the effect re-added.
-
 ## Use
 - **Edit page:** open the Effects panel, find **Resolve360** under Effects, and drag it onto your 360 clip.
 - **Fusion page:** add the tool from the Fuses category, or press Shift+Space and search for "Resolve360".
 
+## Important: timeline scaling
+Resolve scales a clip to the timeline *before* an Edit-page effect sees it. By default it may crop the clip, which throws away the left and right edges of the 360 picture and shows up as a visible seam.
+
+If your timeline is not 2:1, set the clip's scaling to **Fit**:
+- On the clip: Inspector -> Video -> Retime and Scaling -> Scaling -> **Fit**, or
+- For the whole project: Project Settings -> Image Scaling -> Mismatched resolution files -> **Scale entire image to fit**.
+
+Adding the effect through the Fusion page avoids this pre-scaling.
 ### Controls
 | Control | What it does |
 |---|---|
@@ -59,14 +62,7 @@ If you installed an earlier test version called `Reframe360`, remove `Reframe360
 | Distortion | 0 = flat, about 1 = stereographic, above 1 = fisheye disc |
 | Reset All | Resets the controls at the current frame (Fusion page version only; on the Edit page use Resolve's built-in reset arrow) |
 
-## Important: timeline scaling
-Resolve scales a clip to the timeline *before* an Edit-page effect sees it. By default it may crop the clip, which throws away the left and right edges of the 360 picture and shows up as a visible seam.
-
-If your timeline is not 2:1, set the clip's scaling to **Fit**:
-- On the clip: Inspector -> Video -> Retime and Scaling -> Scaling -> **Fit**, or
-- For the whole project: Project Settings -> Image Scaling -> Mismatched resolution files -> **Scale entire image to fit**.
-
-Adding the effect through the Fusion page avoids this pre-scaling.
+**Known bugs** Resolve's built in reset button sets all controls back to default state but the timeline viewer does not change until a slider is adjusted.
 
 ## Known limitations
 - Input should be 2:1 equirectangular video.
