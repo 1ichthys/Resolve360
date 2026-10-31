@@ -23,7 +23,7 @@ You copy two files into Resolve's user Fusion folder and restart Resolve. Please
 
 The macOS path is the one we tested. The Windows and Linux paths follow Blackmagic's usual defaults but are **untested**; if yours differs, please tell us.
 
-1. Download the latest zip from the [Releases](https://github.com/1ichthys/Resolve360/releases) page and unzip it. (Or clone the repository: `git clone https://github.com/1ichthys/Resolve360.git`.)
+1. Download the latest zip from the [Releases](https://github.com/1ichthys/Resolve360/releases) page and unzip it.
 2. Put `Reframe360.fuse` in `~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Fuses/`. In Finder, use Go → Go to Folder and paste that path.
 3. Put `Reframe360.setting` in `~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Templates/Edit/Effects/`. 
 **Create the Templates/Edit/Effects folders if they don’t exist.**
@@ -51,6 +51,7 @@ If your timeline is not 2:1, set the clip's scaling to **Fit**:
 - For the whole project: Project Settings -> Image Scaling -> Mismatched resolution files -> **Scale entire image to fit**.
 
 Adding the effect through the Fusion page avoids this pre-scaling.
+
 ### Controls
 | Control | What it does |
 |---|---|
